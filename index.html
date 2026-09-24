@@ -9,25 +9,175 @@
 <body class="bg-gray-900 text-white font-sans">
     <nav class="p-6 border-b border-gray-800 flex justify-between items-center">
         <h1 class="text-2xl font-bold text-green-400">♻️ E-Waste Cash-Out</h1>
-        <button class="bg-green-500 px-4 py-2 rounded-lg font-bold text-black">Login</button>
     </nav>
 
-    <main class="flex flex-col items-center justify-center py-20 px-4 text-center">
-        <h2 class="text-5xl font-extrabold mb-6">India's First <span class="text-green-400">E-Waste</span> Marketplace</h2>
-        <p class="text-gray-400 max-w-lg mb-10 text-lg">Ghar baithe purani battery aur electronics bechein. AI se instant price payein.</p>
-        
-        <div class="bg-gray-800 p-10 rounded-3xl shadow-2xl border border-gray-700 w-full max-w-md">
-            <div class="border-2 border-dashed border-gray-600 p-8 rounded-2xl mb-6">
-                <p class="text-gray-400 mb-4 text-sm">Upload Photo of Item</p>
-                <input type="file" id="upload" class="hidden">
+    <main class="flex flex-col items-center justify-center py-12 px-4 text-center">
+        <h2 class="text-4xl md:text-5xl font-extrabold mb-6">India's First <span class="text-green-400">E-Waste</span> Marketplace</h2>
+        <p class="text-gray-400 max-w-lg mb-10 text-lg">Ghar baithe purana phone, laptop aur electronics bechein. AI se instant price payein.</p>
+
+        <div class="bg-gray-800 p-6 md:p-10 rounded-3xl shadow-2xl border border-gray-700 w-full max-w-md">
+
+            <!-- Step 1: Photo -->
+            <div class="border-2 border-dashed border-gray-600 p-6 rounded-2xl mb-6">
+                <img id="preview" class="hidden mx-auto mb-4 rounded-xl max-h-56 object-contain" alt="Preview">
+                <p id="uploadText" class="text-gray-400 mb-4 text-sm">Upload Photo of Item</p>
+                <input type="file" id="upload" accept="image/*" class="hidden">
                 <label for="upload" class="cursor-pointer bg-white text-black px-6 py-3 rounded-full font-bold hover:bg-green-400 transition">📷 Select Photo</label>
             </div>
-            <button onclick="alert('AI Analysing... Price: ₹450 estimated')" class="w-full bg-blue-600 py-4 rounded-xl font-bold text-xl hover:bg-blue-700">Get AI Quote</button>
+
+            <button id="quoteBtn" class="w-full bg-blue-600 py-4 rounded-xl font-bold text-xl hover:bg-blue-700 disabled:opacity-50">Get AI Quote</button>
+
+            <p id="error" class="hidden mt-4 text-red-400 text-sm"></p>
+
+            <!-- Step 2: Result -->
+            <div id="result" class="hidden mt-6 text-left bg-gray-900 rounded-2xl p-5 border border-gray-700">
+                <p class="text-gray-400 text-sm">Device</p>
+                <p id="rDevice" class="font-bold text-lg mb-3"></p>
+                <p class="text-gray-400 text-sm">Condition</p>
+                <p id="rCondition" class="font-semibold mb-3 capitalize"></p>
+                <p class="text-gray-400 text-sm">Estimated Price</p>
+                <p id="rPrice" class="text-3xl font-extrabold text-green-400 mb-2"></p>
+                <p id="rNote" class="text-gray-400 text-sm"></p>
+                <p class="text-xs text-gray-500 mt-3">Ye sirf andaza hai. Final price pickup par item check hone ke baad tay hoga.</p>
+            </div>
+
+            <!-- Step 3: Pickup form -->
+            <div id="pickup" class="hidden mt-6 text-left">
+                <h3 class="font-bold text-lg mb-3">📦 Free Pickup Request</h3>
+                <input id="pName" type="text" placeholder="Aapka naam" class="w-full mb-3 p-3 rounded-lg bg-gray-900 border border-gray-700 focus:outline-none focus:border-green-400">
+                <input id="pPhone" type="tel" placeholder="Phone number (10 digit)" maxlength="10" class="w-full mb-3 p-3 rounded-lg bg-gray-900 border border-gray-700 focus:outline-none focus:border-green-400">
+                <input id="pCity" type="text" value="Bhopal" placeholder="City" class="w-full mb-3 p-3 rounded-lg bg-gray-900 border border-gray-700 focus:outline-none focus:border-green-400">
+                <textarea id="pAddress" rows="2" placeholder="Address / Area" class="w-full mb-3 p-3 rounded-lg bg-gray-900 border border-gray-700 focus:outline-none focus:border-green-400"></textarea>
+                <button id="pickupBtn" class="w-full bg-green-500 text-black py-3 rounded-xl font-bold text-lg hover:bg-green-400">Pickup Request Bhejo</button>
+                <p id="pError" class="hidden mt-3 text-red-400 text-sm"></p>
+            </div>
         </div>
     </main>
 
     <section class="bg-gray-800 py-10 text-center border-t border-gray-700">
-        <p class="text-sm text-gray-500">Currently serving: Delhi, Mumbai, Bangalore, Pune</p>
+        <p class="text-sm text-gray-500">Currently serving: Bhopal</p>
     </section>
+
+<script>
+    // ====== YAHAN APNA WHATSAPP NUMBER DAALO (91 ke saath, bina + ya space) ======
+    const WHATSAPP_NUMBER = "919999999999";
+    // ==========================================================================
+
+    let selectedImage = null; // { base64, mimeType }
+    let lastQuote = null;
+
+    const $ = id => document.getElementById(id);
+
+    // Photo choose hone par: chhota karo (Vercel limit ke liye) + preview dikhao
+    $("upload").addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+            selectedImage = await resizeImage(file, 1024);
+            $("preview").src = "data:image/jpeg;base64," + selectedImage.base64;
+            $("preview").classList.remove("hidden");
+            $("uploadText").textContent = "Photo select ho gayi ✅";
+            $("error").classList.add("hidden");
+        } catch (err) {
+            showError("Photo padhne mein dikkat aayi. Dusri photo try karo.");
+        }
+    });
+
+    function resizeImage(file, maxSize) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            img.onload = () => {
+                let { width, height } = img;
+                const scale = Math.min(1, maxSize / Math.max(width, height));
+                width = Math.round(width * scale);
+                height = Math.round(height * scale);
+                const canvas = document.createElement("canvas");
+                canvas.width = width;
+                canvas.height = height;
+                canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+                const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+                URL.revokeObjectURL(url);
+                resolve({ base64: dataUrl.split(",")[1], mimeType: "image/jpeg" });
+            };
+            img.onerror = reject;
+            img.src = url;
+        });
+    }
+
+    function showError(msg) {
+        $("error").textContent = msg;
+        $("error").classList.remove("hidden");
+    }
+
+    // Get AI Quote
+    $("quoteBtn").addEventListener("click", async () => {
+        if (!selectedImage) {
+            showError("Pehle item ki photo select karo.");
+            return;
+        }
+        $("error").classList.add("hidden");
+        $("result").classList.add("hidden");
+        $("pickup").classList.add("hidden");
+        $("quoteBtn").disabled = true;
+        $("quoteBtn").textContent = "AI check kar raha hai... ⏳";
+
+        try {
+            const resp = await fetch("/api/quote", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ image: selectedImage.base64, mimeType: selectedImage.mimeType })
+            });
+            const q = await resp.json();
+            if (!resp.ok || q.error) throw new Error(q.error || "Server error");
+
+            if (!q.device || q.device.toLowerCase() === "unknown") {
+                showError("Photo mein electronics item nahi dikha. Saaf photo dobara try karo.");
+            } else {
+                lastQuote = q;
+                $("rDevice").textContent = (q.brand && q.brand !== "unknown" ? q.brand + " " : "") + q.device;
+                $("rCondition").textContent = q.condition || "-";
+                $("rPrice").textContent = "₹" + q.min_price_inr + " - ₹" + q.max_price_inr;
+                $("rNote").textContent = q.note || "";
+                $("result").classList.remove("hidden");
+                $("pickup").classList.remove("hidden");
+            }
+        } catch (err) {
+            showError("Quote nahi mil paya. Thodi der baad dobara try karo.");
+            console.error(err);
+        } finally {
+            $("quoteBtn").disabled = false;
+            $("quoteBtn").textContent = "Get AI Quote";
+        }
+    });
+
+    // Pickup request -> WhatsApp
+    $("pickupBtn").addEventListener("click", () => {
+        const name = $("pName").value.trim();
+        const phone = $("pPhone").value.trim();
+        const city = $("pCity").value.trim();
+        const address = $("pAddress").value.trim();
+
+        if (!name || !/^[6-9]\d{9}$/.test(phone) || !city || !address) {
+            $("pError").textContent = "Naam, sahi 10 digit phone number, city aur address bharo.";
+            $("pError").classList.remove("hidden");
+            return;
+        }
+        $("pError").classList.add("hidden");
+
+        const q = lastQuote || {};
+        const msg =
+            "Pickup Request 📦\n" +
+            "Naam: " + name + "\n" +
+            "Phone: " + phone + "\n" +
+            "City: " + city + "\n" +
+            "Address: " + address + "\n" +
+            "Item: " + (q.brand || "") + " " + (q.device || "") + "\n" +
+            "Condition: " + (q.condition || "-") + "\n" +
+            "AI Quote: ₹" + q.min_price_inr + " - ₹" + q.max_price_inr;
+
+        window.open("https://wa.me/" + WHATSAPP_NUMBER + "?text=" + encodeURIComponent(msg), "_blank");
+    });
+</script>
 </body>
 </html>
